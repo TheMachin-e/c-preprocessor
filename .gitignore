@@ -1,0 +1,12 @@
+# BUild artifacts
+*.o
+*.i
+*.out
+
+# executables
+my_preprocessor
+*.exe
+
+# swap files
+*.swp
+*.swo
