@@ -4,7 +4,7 @@
 *.out
 
 # executables
-my_preprocessor
+mypreprocessor
 *.exe
 
 # swap files
