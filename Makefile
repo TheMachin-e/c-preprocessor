@@ -1,4 +1,4 @@
-OBJ = src/lexer.o src/main.o src/splice_remover.o
+OBJ = src/lexer.o src/main.o src/preprocessor.o
 CFLAGS = -Iinclude
 
 mypreprocessor: $(OBJ) 
