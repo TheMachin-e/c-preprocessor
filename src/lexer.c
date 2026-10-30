@@ -3,14 +3,20 @@
 token lexer_next(lexer *ptr){
 	token tok = {0};
 	tok.type = INVALID;	
-	
-	while(ptr->source[ptr->position] == ' ' || ptr->source[ptr->position] == '\v' || ptr->source[ptr->position] == '\f' || ptr->source[ptr->position] == '\r' || ptr->source[ptr->position] == '\t' ){
-		ptr->position++; 
-		ptr->column++;
-	}
 	tok.start = ptr->position;
 	tok.line = ptr->line;
 	tok.column = ptr->column;
+	
+	if (ptr->source[ptr->position] == ' ' || ptr->source[ptr->position] == '\v' || ptr->source[ptr->position] == '\f' || ptr->source[ptr->position] == '\r' || ptr->source[ptr->position] == '\t' ){
+		tok.type = SPACE;
+		
+		while (ptr->source[ptr->position] == ' ' || ptr->source[ptr->position] == '\v' || ptr->source[ptr->position] == '\f' || ptr->source[ptr->position] == '\r' || ptr->source[ptr->position] == '\t' ){
+		ptr->position++; 
+		ptr->column++;
+		}
+		tok.length = 1;
+		return tok;
+	}
 
 	if(isalpha(ptr->source[ptr->position]) || ptr->source[ptr->position] == '_'){
 		tok.type = IDENTIFIER;
@@ -434,6 +440,8 @@ char *token_type_print(token_type type){
 		case HASH: return "HASH";
 		case HASH_HASH: return "DOUBLE HASH";
 		case NEWLINE: return "NEWLINE";
+		case SPACE: return "SPACE";
 		case TOKEN_EOF: return "TOKEN_EOF"; 
+		default: printf("unrecognized token\n");
 	}
 }

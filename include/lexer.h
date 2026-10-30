@@ -22,6 +22,7 @@ typedef enum token_type{
 	HASH,
 	HASH_HASH,
 	NEWLINE,
+	SPACE,
 	TOKEN_EOF,
 }token_type;
 
@@ -38,4 +39,5 @@ typedef struct token{
 token lexer_next(lexer *);
 char *token_type_print(token_type);
 char *splice_remover(char *, size_t *);
-void remove_comments(char *, size_t);
+char *tok_to_str(lexer *);
+char *to_path(char *);
