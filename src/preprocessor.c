@@ -37,7 +37,7 @@ char * tok_to_str(lexer *lex){
 			//error report
 			return NULL;
 		}
-		else if(tok.type == OPERATOR && tok.length = 1 && lex->source[tok.start] == '>')
+		else if(tok.type == OPERATOR && tok.length == 1 && lex->source[tok.start] == '>')
 			break;
 		i = len;
 		len += tok.length;

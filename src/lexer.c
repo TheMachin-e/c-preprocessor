@@ -14,7 +14,7 @@ token lexer_next(lexer *ptr){
 		ptr->position++; 
 		ptr->column++;
 		}
-		tok.length = 1;
+		tok.length = ptr->position - tok.start;
 		return tok;
 	}
 
@@ -423,7 +423,7 @@ token lexer_next(lexer *ptr){
 
 }
 
-
+/*
 char *token_type_print(token_type type){
 	switch(type){
 		case INVALID: return "INVALID";
@@ -445,3 +445,4 @@ char *token_type_print(token_type type){
 		default: printf("unrecognized token\n");
 	}
 }
+*/

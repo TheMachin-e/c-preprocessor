@@ -2,7 +2,8 @@
 #include<string.h>
 #include<stdlib.h>
 #include"lexer.h"
-int preprocessor(const char *, FILE *);
+#define MAX_INCLUDE_DEPTH 100
+int preprocessor(const char *, FILE *, unsigned int);
 
 int main(int argc, char **argv){
 	int res;
@@ -11,8 +12,8 @@ int main(int argc, char **argv){
 		return 1;
 	}
 	size_t len = strlen(argv[1]);
-	if(strcmp(argv[1] + (len - 2), ".c") != 0){ 	//check again
-		fprintf(error, "Invalid file format\n");
+	if(len < 3 || strcmp(argv[1] + (len - 2), ".c") != 0){ 	//check again
+		fprintf(stderr, "Invalid file format\n");
 		return 1;
 	}
 	char *des = malloc(sizeof(char) * (len + 1));
@@ -29,14 +30,24 @@ int main(int argc, char **argv){
 		des = NULL;
 		return 1;
 	}
+	res = preprocessor(argv[1], fd, 0);
+	fclose(fd);
+	if(res != 0){
+		if(remove(des) == -1){
+			perror("remove");
+			return 1;
+		}
+	}
 	free(des);
 	des = NULL;
-	res = preprocessor(argv[1], fd);
-	fclose(fd);
 	return res;
 }
 
-int preprocessor(const char *file_name, FILE *fd){
+int preprocessor(const char *file_name, FILE *fd, unsigned int depth){
+	if(depth >= MAX_INCLUDE_DEPTH){
+		fprintf(stderr, "#include nested depth exceeded 100\n");
+		return 1;
+	}
 	FILE *fp = fopen(file_name, "r");
 	if(!fp){
 		perror(file_name);
@@ -47,13 +58,13 @@ int preprocessor(const char *file_name, FILE *fd){
 		fclose(fp);
 		return 1;
 	}
-	size_t file_len = ftell(fp);
+	long file_len = ftell(fp);
 	if(file_len < 0){
 		perror("ftell");
-		fclode(fp);
+		fclose(fp);
 		return 1;
 	}
-	size_t source_len = file_len + 1;
+	size_t source_len = (size_t)file_len + 1;
 	rewind(fp);
 	char *row_source = malloc(sizeof(char) * source_len);
 	if(!row_source){
@@ -61,7 +72,7 @@ int preprocessor(const char *file_name, FILE *fd){
 		fclose(fp);
 		return 1;
 	}
-	if(fread(row_source, 1, file_len, fp) != file_len){
+	if(fread(row_source, 1, (size_t)file_len, fp) != (size_t)file_len){
 		fprintf(stderr, "Failed to read input file\n");
 		free(row_source);
 		fclose(fp);
@@ -76,14 +87,26 @@ int preprocessor(const char *file_name, FILE *fd){
 		row_source = NULL;
 		return 1;	
 	}
-	printf("%s\n", source);
 	char *header_file_name;
 	char *file_path;
 	lexer lex = {source, 0, source_len, 1, 1};
 	token tok = {0};
 	int directive_flag = 0;
+	int res;
 	while((tok = lexer_next(&lex)).type != TOKEN_EOF){
 		switch(tok.type){
+			case UNTERM_COMMENT: 
+				fprintf(stderr, "%d:%d: error: unterminated comment\n", tok.line, tok.column);
+				return 1;
+			case UNTERM_CHAR: 
+				fprintf(stderr, "%d:%d: warning: missing terminating ' character\n", tok.line, tok.column);
+				break;
+			case UNTERM_STRING: 
+				fprintf(stderr, "%d:%d: warning: missing terminating \" character\n", tok.line, tok.column);
+				break;
+			case INVALID:
+				fprintf(stderr, "%d:%d: Invalid token", tok.line, tok.column);
+				break;
 			case COMMENT:
 				fputc(' ', fd);
 				continue;
@@ -102,6 +125,14 @@ int preprocessor(const char *file_name, FILE *fd){
 				break;
 			case STRING:
 				if(directive_flag == 2){
+					if(tok.length <= 2){
+						fclose(fp);
+						free(source);
+						source = NULL;
+						free(row_source);
+						row_source = NULL;
+						return 1;	
+					}	
 					header_file_name = malloc(sizeof(char) * tok.length - 1);
 					if(!header_file_name){
 						perror("malloc");
@@ -115,9 +146,18 @@ int preprocessor(const char *file_name, FILE *fd){
 					}
 					strncpy(header_file_name, source + tok.start + 1, tok.length - 1);// last " included // beware of ""
 					header_file_name[tok.length - 2] = '\0';	
-					preprocessor(header_file_name, fd);
+					file_path = to_path()
+					res = preprocessor(header_file_name, fd, depth + 1);
 					free(header_file_name);
 					header_file_name = NULL;
+					if(res != 0){
+						fclose(fp);
+						free(source);
+						source = NULL;
+						free(row_source);
+						row_source = NULL;
+						return res;	
+					}
 					directive_flag = 0;
 				}
 				else
@@ -145,11 +185,19 @@ int preprocessor(const char *file_name, FILE *fd){
 							row_source = NULL;
 							return 1;	
 						}
-						preprocessor(file_path, fd);
+						res = preprocessor(file_path, fd, depth + 1);
 						free(header_file_name);
 						header_file_name = NULL;
 						free(file_path);
 						file_path = NULL;
+						if(res != 0){
+							fclose(fp);
+							free(source);
+							source = NULL;
+							free(row_source);
+							row_source = NULL;
+							return res;	
+						}
 						directive_flag = 0;
 					}
 				}
