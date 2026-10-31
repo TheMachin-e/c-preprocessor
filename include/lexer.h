@@ -1,4 +1,5 @@
 #include<stddef.h>
+#include<stdio.h>
 typedef struct lexer{
 	const char *source;
 	size_t position;
@@ -40,4 +41,5 @@ token lexer_next(lexer *);
 //char *token_type_print(token_type);
 char *splice_remover(char *, size_t *);
 char *tok_to_str(lexer *);
-char *to_path(char *);
+char *to_path(const char *, const char *);
+int preprocessor(const char *, FILE *, unsigned int);
