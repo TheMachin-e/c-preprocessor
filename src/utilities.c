@@ -2,6 +2,14 @@
 #include<stdio.h>
 #include<string.h>
 #include"lexer.h"
+
+const char *include_dirs[] = {
+	"/usr/lib/gcc/x86_64-linux-gnu/15/include/",
+	"/usr/local/include/",
+	"/usr/include/x86_64-linux-gnu/",
+	"/usr/include/"
+};
+
 char *splice_remover(char *source, size_t *len){
 	char *new_s = malloc(sizeof(char) * *len);
 	if(!new_s){
@@ -93,4 +101,38 @@ char *to_path(const char *source_file, const char *file_name){
 		return path;
 }
 
-
+FILE * find_valid_path(const char *source_file, const char *file_name,  char **file_path){
+	FILE *fs = NULL;
+	*file_path = NULL;
+	if(source_file){ // source_file is passed null for angular bracket header inclusion
+		*file_path = to_path(source_file, file_name);
+		fprintf(stdout, "Including: %s ", *file_path);
+		if(!*file_path){
+			return NULL;
+		}
+		if(fs = fopen(*file_path, "r")){
+			fprintf(stdout, "success\n");
+			return fs;
+		}
+		fprintf(stdout, "failed\n");
+		free(*file_path);
+		*file_path = NULL;
+	}
+	size_t ele = sizeof(include_dirs) / sizeof(include_dirs[0]);
+	for(size_t i = 0; i < ele; i++){
+		*file_path = to_path(include_dirs[i], file_name);
+		fprintf(stdout, "Including: %s ", *file_path);
+		if(!file_path){
+			return NULL;
+		}
+		if(fs = fopen(*file_path, "r")){
+			fprintf(stdout, "success\n");
+			return fs;
+		}
+		fprintf(stdout, "failed\n");
+		free(*file_path); 
+		*file_path = NULL;
+	}
+	perror(file_name);
+	return NULL;
+}

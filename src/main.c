@@ -2,6 +2,7 @@
 #include<stdlib.h>
 #include"lexer.h"
 
+
 int main(int argc, char **argv){
 	int res;
 	if(argc != 2){
@@ -20,6 +21,7 @@ int main(int argc, char **argv){
 	}
 	strcpy(des, argv[1]);
 	des[len - 1] = 'i';
+
 	FILE *fd = fopen(des, "w");
 	if(!fd){
 		perror("fopen");
@@ -27,14 +29,29 @@ int main(int argc, char **argv){
 		des = NULL;
 		return 1;
 	}
-	res = preprocessor(argv[1], fd, 0);
+	
+	FILE *fp = fopen(argv[1], "r");
+	if(!fp){
+		perror(argv[1]);
+		fclose(fd);
+		remove(des);
+		free(des);
+		des = NULL;
+		return 1;
+	}
+
+	res = preprocessor(argv[1], fp, fd, 0);
+
 	fclose(fd);
+	fclose(fp);
+
 	if(res != 0){
 		if(remove(des) == -1){
 			perror("remove");
 			return 1;
 		}
 	}
+
 	free(des);
 	des = NULL;
 	return res;
