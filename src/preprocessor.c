@@ -2,9 +2,22 @@
 #include<string.h>
 #include"lexer.h"
 #define MAX_INCLUDE_DEPTH 100
+#define INITIAL_BUCKET_COUNT 16
 
 
-int preprocessor(const char *file_name, FILE *fp, FILE *fd, unsigned int depth){
+int preprocessor_context_init(preprocessor_context *ctx){
+	ctx->macros.bucket_count = INITIAL_BUCKET_COUNT;
+	ctx->macros.macro_count = 0;
+	ctx->macros.buckets = calloc(ctx->macors.bucket_count, sizeof(macro *));
+	if(!ctx->macros.buckets){
+		perror("calloc");
+		return 1;
+	}
+	return 0;
+}
+
+
+int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context *ctx,unsigned int depth){
 	if(depth >= MAX_INCLUDE_DEPTH){
 		fprintf(stderr, "%s: #include nested depth exceeded 100\n", file_name);
 		return 1;
@@ -116,7 +129,7 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, unsigned int depth){
 						return 1;	
 					}
 
-					res = preprocessor(file_path, fs, fd, depth + 1);
+					res = preprocessor(file_path, fs, fd, ctx, depth + 1);
 
 					fclose(fs);
 					free(header_file_name);
@@ -160,7 +173,7 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, unsigned int depth){
 						}
 
 
-						res = preprocessor(file_path, fs, fd, depth + 1);
+						res = preprocessor(file_path, fs, fd, ctx, depth + 1);
 
 						fclose(fs);
 						free(header_file_name);

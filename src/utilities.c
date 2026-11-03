@@ -28,7 +28,7 @@ char *splice_remover(char *source, size_t *len){
 	return new_s;
 }
 
-char * tok_to_str(lexer *lex){
+char *tok_to_str(lexer *lex){
 	token tok;
 	size_t len = 0;
 	size_t mem_len = 30;
@@ -101,7 +101,7 @@ char *to_path(const char *source_file, const char *file_name){
 		return path;
 }
 
-FILE * find_valid_path(const char *source_file, const char *file_name,  char **file_path){
+FILE *find_valid_path(const char *source_file, const char *file_name,  char **file_path){
 	FILE *fs = NULL;
 	*file_path = NULL;
 	if(source_file){ // source_file is passed null for angular bracket header inclusion
@@ -135,4 +135,102 @@ FILE * find_valid_path(const char *source_file, const char *file_name,  char **f
 	}
 	perror(file_name);
 	return NULL;
+}
+
+void free_replacement_tokens(macro *node){
+	for(size_t i = 0; i < node->replacement_count; i++)
+		free(node->replacement[i].text);
+
+	free(node->replacement);
+	node->replacement = NULL;
+	node->replacement_count = 0;
+}
+
+size_t djb2(const char *str){
+	size_t hash = 5381;
+	while(*str)
+		hash = hash * 33  + (unsigned char)*str++;
+	return hash;
+}
+
+size_t macro_hash(const char *name, const size_t bucket_count){
+	return djb2(name) % bucket_count;
+}
+
+void insert_macro(macro_table *table, macro *new_macro){
+	size_t hash = macro_hash(new_macro->name, table->bucket_count);
+	macro *node = table->buckets[hash];
+	if(!node){
+		table->buckets[hash] = new_macro;	
+		table->macro_count += 1;
+		return;
+	}
+	while(node){
+		if(strcmp(node->name, new_macro->name) == 0){
+			free_replacement_token(node);
+			node->replacement = new_macro->replacement;
+			node->replacement_count = new_macro->replacement_count;
+			new_macro->replacemnet = NULL;
+			free(new_macro->name);
+			free(new_macro);
+			return;
+		}
+		if(!node->next){
+			node->next = new_macro;
+			table->macro_count += 1;
+			return;
+		}
+		node = node->next;
+	}
+}
+
+macro *macro_lookup(const macro_table *table, const char *name){
+	size_t hash = macro_hash(name, table->bucket_count);
+	macro *node = table->buckets[hash];
+	while(node){
+		if(strcmp(node->name, name) == 0)
+			return node;
+		node = node->next;  
+	}
+	return NULL;
+}
+
+void macro_delete(macro_table * table, const char *name){
+	size_t hash = macro_hash(name, table->bucket_count);
+	macro *prev = NULL;
+	macro *node = table->buckets[hash];
+	while(node){
+		if(strcmp(node->name, name) == 0){
+			if(prev)
+				prev->next = node->next;
+			else
+				table->buckets[hash] = node->next;	
+			
+			free_replacement_tokens(node);
+			free(node->name);
+			free(node);
+			table->macro_count--;
+			return;	
+		}
+		prev = node;
+		node = node->next;
+	}
+}
+
+void macro_table_destroy(macro_table *table){
+	macro * node;
+	for(size_t i = 0; i < table->bucket_count; i++){
+		node = table->buckets[i];
+		while(node){
+			table->buckets[i] = node->next;
+			freer_replacement_tokens(node);
+			free(node->name);
+			free(node);
+			node = table->buckets[i];
+		}
+	}
+	free(table->buckets);
+	table->buckets = NULL;
+	table->bucket_count = 0;
+	table->macro_count = 0;
 }

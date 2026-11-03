@@ -36,6 +36,31 @@ typedef struct token{
 }token;
 
 
+typedef struct macro_token{
+	token_type type;
+	char *text;
+}macro_token;
+
+
+typedef struct macro{
+	char *name;
+	macro_token *replacement;
+	size_t replacement_count;
+	struct macro *next;
+}macro;
+
+
+typedef struct macro_table{
+	macro **buckets;
+	size_t bucket_count;
+	size_t macro_count;
+}macro_table;
+
+
+typedef struct preprocesso_context {
+	macro_table macros;
+}preprocessor_context;
+
 
 token lexer_next(lexer *);
 //char *token_type_print(token_type);
@@ -44,3 +69,10 @@ char *tok_to_str(lexer *);
 char *to_path(const char *, const char *);
 int preprocessor(const char *, FILE *, FILE *, unsigned int);
 FILE *find_valid_path(const char *, const char *, char **);
+int preprocessor_context_init(preprocessor_context *);
+void free_preprocessor_context(preprocessor_context *);
+size_t djb2(const char *);
+size_t macro_hash(char *, const size_t);
+macro *macro_lookup(const macro_table *, const char *);
+void macro_delete(macro_table *, const char *);
+void macro_table_destroy(macro_table *);

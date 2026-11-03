@@ -40,10 +40,20 @@ int main(int argc, char **argv){
 		return 1;
 	}
 
-	res = preprocessor(argv[1], fp, fd, 0);
+	preprocessor_context ctx;
+	
+	res = preprocessor_context_init(&ctx);
+	if(res != 0){
+		fclose(fp);
+		fclose(fd);
+		return 1;
+	}
+
+	res = preprocessor(argv[1], fp, fd, &ctx, 0);
 
 	fclose(fd);
 	fclose(fp);
+	free_preprocessor_context(&ctc);
 
 	if(res != 0){
 		if(remove(des) == -1){
