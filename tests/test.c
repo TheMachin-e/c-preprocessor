@@ -43,11 +43,36 @@ hel yeh
 
 #undef A
 #define A 20
-*/
 #define A B
 #define B A
 #define C A
 
+#define A 10
+#undef A
+#define A 20
+
+int x = A;
+
+*/
+/*
+#define A 10
+#define B A + 5
+#define C B * 2
+
+int x = C;
+*/
+/*
+#define A B
+#define B A
+
+int x = A;
+*/
+/*
+#define EMPTY
+int x = 10 EMPTY + 20;
+*/
+#define A 100
+int x = A + A + A;
 int x = C;
 int y = A;	
 
