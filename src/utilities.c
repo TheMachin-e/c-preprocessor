@@ -247,7 +247,7 @@ void print_macro_table(const macro_table * table){
 					printf("%s", node->replacement[j].text);
 			}
 			printf("\n");
-			printf("\treplacement count: %d\n", node->replacement_count);
+			printf("\treplacement count: %zu\n", node->replacement_count);
 			node = node->next;
 		}
 	}

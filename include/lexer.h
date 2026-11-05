@@ -43,6 +43,7 @@ typedef struct macro_token{
 
 
 typedef struct macro{
+	int lookup_flag;
 	char *name;
 	macro_token *replacement;
 	size_t replacement_count;
@@ -71,11 +72,16 @@ char *tok_to_str(lexer *);
 char *to_path(const char *, const char *);
 int preprocessor(const char *, FILE *, FILE *, preprocessor_context *, unsigned int);
 FILE *find_valid_path(const char *, const char *, char **);
+
 int preprocessor_context_init(preprocessor_context *);
 int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth);
 int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth);
 int handle_define(const char *, lexer *, macro_table *);
 int handle_undef(const char *, lexer *, macro_table *);
+
+int expand_macros(const token, const char *, const macro_table *, FILE *);
+void expand_token(macro *, const macro_table *, FILE *);
+
 size_t djb2(const char *);
 size_t macro_hash(const char *, const size_t);
 macro *macro_lookup(const macro_table *, const char *);
