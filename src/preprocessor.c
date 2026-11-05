@@ -8,7 +8,7 @@
 int preprocessor_context_init(preprocessor_context *ctx){
 	ctx->macros.bucket_count = INITIAL_BUCKET_COUNT;
 	ctx->macros.macro_count = 0;
-	ctx->macros.buckets = calloc(ctx->macors.bucket_count, sizeof(macro *));
+	ctx->macros.buckets = calloc(ctx->macros.bucket_count, sizeof(macro *));
 	if(!ctx->macros.buckets){
 		perror("calloc");
 		return 1;
@@ -55,149 +55,57 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 	char *file_path;
 	lexer lex = {source, 0, source_len, 1, 1};
 	token tok = {0};
-	int directive_flag = 0;
-	int newline_flag = 0;
+	int at_line_start = 1;
 	int res;
 	FILE * fs;
 	while((tok = lexer_next(&lex)).type != TOKEN_EOF){
-		switch(tok.type){
-			case UNTERM_COMMENT: 
-				fprintf(stderr, "%s:%ld:%ld: error: unterminated comment\n", file_name, tok.line, tok.column);
+	//	fprintf(stdout, "%.*s : %s \n", (int)tok.length, source + tok.start, token_type_print(tok.type));
+		if(tok.type == HASH && at_line_start){
+			res = handle_directive(file_name, &lex, fd, ctx, depth);
+			if(res != 0){
 				free(source);
-				source = NULL;
 				free(row_source);
-				row_source = NULL;
+				return res;
+			}
+			continue;
+		}
+		switch(tok.type){
+			case UNTERM_COMMENT:
+				fprintf(stderr, "%s:%zu:%zu: error: unterminated comment\n", file_name, tok.line, tok.column);
+				free(source);
+				free(row_source);
 				return 1;
-			case UNTERM_CHAR: 
-				fprintf(stderr, "%s:%ld:%ld: warning: missing terminating ' character\n", file_name, tok.line, tok.column);
+			case UNTERM_CHAR:
+				fprintf(stderr, "%s:%zu:%zu: warning: missing terminating ' character\n", file_name, tok.line, tok.column);
+
 				fwrite(source + tok.start, 1, tok.length, fd);
 				break;
-			case UNTERM_STRING: 
-				fprintf(stderr, "%s:%ld:%ld: warning: missing terminating \" character\n", file_name, tok.line, tok.column);
+			case UNTERM_STRING:
+				fprintf(stderr, "%s:%zu:%zu: warning: missing terminating \" character\n", file_name, tok.line, tok.column);
+
 				fwrite(source + tok.start, 1, tok.length, fd);
 				break;
 			case INVALID:
-				fprintf(stderr, "%s:%ld:%ld: warning: Invalid token %.*s\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
+				fprintf(stderr, "%s:%zu:%zu: warning: Invalid token %.*s\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
+
 				fwrite(source + tok.start, 1, tok.length, fd);
 				break;
 			case COMMENT:
 				fputc(' ', fd);
 				continue;
-
-			case HASH:
-				directive_flag = 1;
-				break;
-			case IDENTIFIER:
-				if(directive_flag == 1)
-					if(tok.length == 7 && strncmp(source + tok.start, "include", 7) == 0) //need to handle #define, #if etc..
-						directive_flag = 2;
-					else 
-						directive_flag = 0;
-				else
-					fwrite(source + tok.start, 1, tok.length, fd);
-				break;
-			case STRING:
-				if(directive_flag == 2){
-					if(tok.length <= 2){
-						free(source);
-						source = NULL;
-						free(row_source);
-						row_source = NULL;
-						return 1;	
-					}	
-					header_file_name = malloc(sizeof(char) * tok.length - 1);
-					if(!header_file_name){
-						perror("malloc");
-						free(source);
-						source = NULL;
-						free(row_source);
-						row_source = NULL;
-						return 1;	
-
-					}
-					strncpy(header_file_name, source + tok.start + 1, tok.length - 1);// last " included // beware of ""
-					header_file_name[tok.length - 2] = '\0';	
-					//file_path = to_path(file_name, header_file_name);
-					fs = find_valid_path(file_name, header_file_name, &file_path);
-					if(!fs){
-						free(source);
-						source = NULL;
-						free(row_source);
-						row_source = NULL;
-						free(header_file_name);
-						header_file_name = NULL;
-						return 1;	
-					}
-
-					res = preprocessor(file_path, fs, fd, ctx, depth + 1);
-
-					fclose(fs);
-					free(header_file_name);
-					header_file_name = NULL;
-					free(file_path);
-					file_path = NULL;
-					if(res != 0){
-						free(source);
-						source = NULL;
-						free(row_source);
-						row_source = NULL;
-						return res;	
-					}
-					directive_flag = 0;
-				}
-				else
-					fwrite(source + tok.start, 1, tok.length, fd);
-				break;
-			case OPERATOR:
-				if(directive_flag == 2){
-					if(strncmp(source + tok.start, "<", tok.length) == 0){
-						header_file_name = tok_to_str(&lex);	
-						if(!header_file_name){//better error handling needed
-							perror("malloc");
-							free(source);
-							source = NULL;
-							free(row_source);
-							row_source = NULL;
-							return 1;	
-						}
-
-						fs = find_valid_path(NULL, header_file_name, &file_path);
-						if(!fs){
-							free(source);
-							source = NULL;
-							free(row_source);
-							row_source = NULL;
-							free(header_file_name);
-							header_file_name = NULL;
-							return 1;	
-						}
-
-
-						res = preprocessor(file_path, fs, fd, ctx, depth + 1);
-
-						fclose(fs);
-						free(header_file_name);
-						header_file_name = NULL;
-						free(file_path);
-						file_path = NULL;
-						if(res != 0){
-							free(source);
-							source = NULL;
-							free(row_source);
-							row_source = NULL;
-							return res;	
-						}
-						directive_flag = 0;
-					}
-				}
-				else
-					fwrite(source + tok.start, 1, tok.length, fd);
-				break;
-			case NEWLINE: 
-				directive_flag = 0;
-				newline_flag = 1;
-			default: 
+			case NEWLINE:
+				at_line_start = 1;
 				fwrite(source + tok.start, 1, tok.length, fd);
+				continue;
+			case SPACE:
+				// Whitespace at the beginning of a line
+				// do not end the beginning-of-line state.
+				fwrite(source + tok.start, 1, tok.length, fd);
+				continue;
+			default:
+				at_line_start = 0;
+				fwrite(source + tok.start, 1, tok.length, fd);
+				break;
 		}
 	}
 	free(source);
@@ -206,5 +114,276 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 	row_source = NULL;
 	return 0;
 }
+
+int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth){
+	token tok;
+	putc('\n',fd);
+	do{
+		tok = lexer_next(lex);
+	}while(tok.type == SPACE || tok.type == COMMENT);
+
+	fprintf(stdout, "%.*s : %s \n", (int)tok.length, lex->source + tok.start, token_type_print(tok.type));
+	if(tok.type != IDENTIFIER){
+		fprintf(stderr, "%s:%zu:%zu: error: invalid preprocessing directive\n", file_name, tok.line, tok.column);
+		return 1;
+	}
+	if(tok.length == 7 && strncmp(lex->source + tok.start, "include", 7) == 0){
+		return handle_include(file_name, lex, fd, ctx, depth);
+	}
+	if(tok.length == 6 && strncmp(lex->source + tok.start, "define", 6) == 0){
+		return handle_define(file_name, lex, &ctx->macros);
+		//fprintf(stderr, "undef directive not implemented yet\n");
+		//return 1;
+	}
+	if (tok.length == 5 && strncmp(lex->source + tok.start, "undef", 5) == 0){
+		return handle_undef(file_name, lex, &ctx->macros);
+	}
+	if (tok.length == 6 && strncmp(lex->source + tok.start, "ifndef", 6) == 0){
+		//handle_ifndef()
+		fprintf(stderr, "ifndef directive not implemented yet\n");
+		return 1;
+	}
+	if (tok.length == 5 && strncmp(lex->source + tok.start, "ifdef", 5) == 0){
+		//handle_ifdef()
+		fprintf(stderr, "ifdef directive not implemented yet\n");
+		return 1;
+	}
+	if (tok.length == 5 && strncmp(lex->source + tok.start, "endif", 5) == 0){
+		//handle_endif()
+		fprintf(stderr, "endif directive not implemented yet\n");
+		return 1;
+	}
+	if (tok.length == 4 && strncmp(lex->source + tok.start, "else", 4) == 0){
+		//handle_else()
+		fprintf(stderr, "else directive not implemented yet\n");
+		return 1;
+	}
+	fprintf(stderr, "%s:%zu:%zu: error: invalid preprocessing directive1\n", file_name, tok.line, tok.column);
+	return 1;
+}
+
+int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth){
+	token tok;
+	char *header_file_name = NULL;
+	char *file_path = NULL;
+	FILE *fs;
+	int res;
+
+	//Get the header filename
+	do{
+		tok = lexer_next(lex);
+	}while(tok.type == SPACE || tok.type == COMMENT);
+
+	if(tok.type == STRING){
+		if(tok.length <= 2){
+			fprintf(stderr, "%s:%zu:%zu: error: empty header file name\n", file_name, tok.line, tok.column);
+			return 1;
+		}
+		header_file_name = malloc(tok.length - 1);
+		if(!header_file_name){
+			perror("malloc");
+			return 1;
+		}
+		memcpy(header_file_name, lex->source + tok.start + 1, tok.length - 2);
+		header_file_name[tok.length - 2] = '\0';
+
+		fs = find_valid_path(file_name, header_file_name, &file_path);
+	}
+	else if(tok.type == OPERATOR && tok.length == 1 && lex->source[tok.start] == '<'){
+		header_file_name = tok_to_str(lex);
+		if(!header_file_name)
+			return 1;
+
+		fs = find_valid_path(NULL, header_file_name, &file_path);
+	}
+	else{
+		fprintf(stderr, "%s:%zu:%zu: error: expected header filename\n",
+				file_name, tok.line, tok.column);
+		return 1;
+	}
+
+	if(!fs){
+		free(header_file_name);
+		return 1;
+	}
+
+	res = preprocessor(file_path, fs, fd, ctx, depth + 1);
+
+	fclose(fs);
+	free(header_file_name);
+	free(file_path);
+
+	return res;
+}
+
+int handle_define(const char *file_name, lexer *lex, macro_table *table){
+	token tok;
+	macro *new_macro = calloc(1, sizeof(macro));
+	if(!new_macro){
+		perror("calloc");
+		return 1;
+	}
+
+	do{
+		tok = lexer_next(lex);
+	}while(tok.type == SPACE || tok.type == COMMENT);
+
+	if(tok.type == NEWLINE || TOKEN_EOF){
+		fprintf(stderr, "%s:%zu:%zu: error: no macro name given with '#define' directive\n", file_name, tok.line, tok.column);
+		free(new_macro);
+		return 1;
+	}	
+	else if(tok.type != IDENTIFIER){
+		fprintf(stderr, "%s:%zu:%zu: error: macro names must be identifier\n", file_name, tok.line, tok.column);
+		free(new_macro);
+		return 1;
+	}
+
+	new_macro->name = malloc(tok.length + 1);
+	if(!new_macro->name){
+		free(new_macro);
+		perror("malloc");
+		return 1;
+	}	
+	memcpy(new_macro->name, lex->source + tok.start, tok.length);
+	new_macro->name[tok.length] = '\0';
+
+	tok = lexer_next(lex);
+
+	if(tok.type != SPACE)
+		fprintf(stderr, "%s:%zu:%zu: warning: ISO C99 requires whitespace after the macro name\n", file_name, tok.line, tok.column);
+	
+	//function macro not implemented
+	if(tok.type == DELIMITER && tok.length == 1 && lex->source[tok.start] == '('){
+		fprintf(stderr, "%s:%zu:%zu: error: function-like macros not supported yet\n", file_name, tok.line, tok.column);
+		free(new_macro->name);
+		free(new_macro);
+		return 1;
+	}
+
+	while(tok.type == SPACE || tok.type == COMMENT)
+		tok = lexer_next(lex);
+
+	if(tok.type == NEWLINE || tok.type == TOKEN_EOF){
+		insert_macro(table, new_macro);
+		return 0;
+	}
+
+	size_t mem_size = 4;
+	new_macro->replacement = calloc(mem_size, sizeof(macro_token));
+	if(!new_macro->replacement){
+		free(new_macro->name);
+		free(new_macro);
+		perror("calloc");
+		return 1;
+	}
+	macro_token *tmp;
+	while(tok.type != NEWLINE && tok.type != TOKEN_EOF){
+		if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
+			fprintf(stderr, "%s:%zu:%zu: error: unterminated token in macro replacement\n", file_name, tok.line, tok.column);
+
+			free_replacement_tokens(new_macro);
+			free(new_macro->name);
+			free(new_macro);
+			return 1;
+		}
+
+		if(new_macro->replacement_count >= mem_size){
+			mem_size *= 2;
+			tmp = realloc(new_macro->replacement, mem_size * sizeof(macro_token));
+			if(!tmp){
+				perror("realloc");
+				free_replacement_tokens(new_macro);
+				free(new_macro->name);
+				free(new_macro);
+				return 1;
+			}
+			new_macro->replacement = tmp;
+		}	
+
+		size_t index = new_macro->replacement_count;
+		if(tok.type == COMMENT){
+			new_macro->replacement[index].type = SPACE;
+			new_macro->replacement[index].text = malloc(sizeof(char) * 2);
+			if(!new_macro->replacement[index].text){
+				free_replacement_tokens(new_macro);
+				free(new_macro->name);
+				free(new_macro);
+				perror("malloc");
+				return 1;
+			}
+			strcpy(new_macro->replacement[index].text, " ");
+		}
+		else{	
+			new_macro->replacement[index].type = tok.type;
+			new_macro->replacement[index].text = malloc(tok.length + 1);
+			if(!new_macro->replacement[index].text){
+				free_replacement_tokens(new_macro);
+				free(new_macro->name);
+				free(new_macro->name);
+				perror("malloc");
+				return 1;
+			}
+			memcpy(new_macro->replacement[index].text, lex->source + tok.start, tok.length);
+			new_macro->replacement[index].text[tok.length] = '\0';
+		}
+		new_macro->replacement_count++;
+		tok = lexer_next(lex);
+	}
+	insert_macro(table, new_macro);
+	return 0;
+}
+
+int handle_undef(const char *file_name, lexer *lex, macro_table *table){
+	token tok;
+	do{
+		tok = lexer_next(lex);
+	}while(tok.type == SPACE || tok.type == COMMENT);
+
+	if(tok.type == NEWLINE || TOKEN_EOF){
+		fprintf(stderr, "%s:%zu:%zu: \033[31merror\033[0m: no macro name given in '#undef' directive\n", file_name, tok.line, tok.column);
+		return 1;
+	}
+	else if(tok.type != IDENTIFIER){
+		fprintf(stderr, "%s:%zu:%zu: error: macro name must identifier\n", file_name, tok.line, tok.column);
+		return 1;
+	}
+	
+	char *macro_name = malloc(tok.length + 1);
+	if(!macro_name){
+		perror("malloc");
+		return 1;
+	}
+	memcpy(macro_name, lex->source + tok.start, tok.length);
+	macro_name[tok.length] = '\0';
+	macro_delete(table, macro_name);
+	free(macro_name);
+	char flag = 0;//to prevent the warning from printing more than onece
+	do{
+		tok = lexer_next(lex);
+		if(tok.type != SPACE && tok.type != COMMENT && !flag){
+			fprintf(stderr, "%s:%zu:%zu: warning: extra tokens at the end of '#undef' directive\n", file_name, tok.line, tok.column);
+			flag = 1;
+		if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
+			fprintf(stderr, "%s:%zu:%zu: error: unterminated token at the end of '#undef' directive\n", file_name, tok.line, tok.column);
+			return 1;	
+		}
+	}while(tok.type != NEWLINE && tok.type != TOKEN_EOF);
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

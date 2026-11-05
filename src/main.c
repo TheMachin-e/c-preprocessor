@@ -34,7 +34,7 @@ int main(int argc, char **argv){
 	if(!fp){
 		perror(argv[1]);
 		fclose(fd);
-		remove(des);
+		//remove(des);
 		free(des);
 		des = NULL;
 		return 1;
@@ -51,9 +51,9 @@ int main(int argc, char **argv){
 
 	res = preprocessor(argv[1], fp, fd, &ctx, 0);
 
+	print_macro_table(&ctx.macros);
 	fclose(fd);
 	fclose(fp);
-	free_preprocessor_context(&ctc);
 
 	if(res != 0){
 		if(remove(des) == -1){
@@ -61,7 +61,6 @@ int main(int argc, char **argv){
 			return 1;
 		}
 	}
-
 	free(des);
 	des = NULL;
 	return res;

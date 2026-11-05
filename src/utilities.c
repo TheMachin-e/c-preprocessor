@@ -42,7 +42,7 @@ char *tok_to_str(lexer *lex){
 		if(tok.type == NEWLINE){
 			free(file_name);
 			file_name = NULL;
-			//error report
+			fprintf(stderr, "%s:%zu:%zu: error: invalid header filename\n", file_name, tok.line, tok.column);
 			return NULL;
 		}
 		else if(tok.type == OPERATOR && tok.length == 1 && lex->source[tok.start] == '>')
@@ -66,7 +66,7 @@ char *tok_to_str(lexer *lex){
 	if(tok.type == TOKEN_EOF){
 		free(file_name);
 		file_name = NULL;
-		//error report
+		fprintf(stderr, "%s:%zu:%zu: error: invalid header filename\n", file_name, tok.line, tok.column);
 		return NULL;
 	}
 	file_name[len] = '\0';
@@ -139,7 +139,8 @@ FILE *find_valid_path(const char *source_file, const char *file_name,  char **fi
 
 void free_replacement_tokens(macro *node){
 	for(size_t i = 0; i < node->replacement_count; i++)
-		free(node->replacement[i].text);
+		if(node->replacement[i].text)
+			free(node->replacement[i].text);
 
 	free(node->replacement);
 	node->replacement = NULL;
@@ -167,10 +168,10 @@ void insert_macro(macro_table *table, macro *new_macro){
 	}
 	while(node){
 		if(strcmp(node->name, new_macro->name) == 0){
-			free_replacement_token(node);
+			free_replacement_tokens(node);
 			node->replacement = new_macro->replacement;
 			node->replacement_count = new_macro->replacement_count;
-			new_macro->replacemnet = NULL;
+			new_macro->replacement = NULL;
 			free(new_macro->name);
 			free(new_macro);
 			return;
@@ -223,7 +224,7 @@ void macro_table_destroy(macro_table *table){
 		node = table->buckets[i];
 		while(node){
 			table->buckets[i] = node->next;
-			freer_replacement_tokens(node);
+			free_replacement_tokens(node);
 			free(node->name);
 			free(node);
 			node = table->buckets[i];
@@ -233,4 +234,21 @@ void macro_table_destroy(macro_table *table){
 	table->buckets = NULL;
 	table->bucket_count = 0;
 	table->macro_count = 0;
+}
+
+void print_macro_table(const macro_table * table){
+	macro *node;
+	for(size_t i = 0; i < table->bucket_count; i++){
+		node = table->buckets[i];
+		while(node){
+			printf("[%zu] %s : ", i, node->name);
+			for(size_t j = 0; j  < node->replacement_count; j++){
+				if(node->replacement[j].text)
+					printf("%s", node->replacement[j].text);
+			}
+			printf("\n");
+			printf("\treplacement count: %d\n", node->replacement_count);
+			node = node->next;
+		}
+	}
 }
