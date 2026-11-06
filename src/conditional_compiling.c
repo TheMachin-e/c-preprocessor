@@ -26,7 +26,7 @@ int push_condition(preprocessor_context *ctx, int condition){
 		perror("calloc");
 		return 1;
 	}	
-	new->parent_active = is_active(ctx) && condition;
+	new->parent_active = is_active(ctx);
 	new->condition = condition;
 	new->next = ctx->stack_top;
 	ctx->stack_top = new;
@@ -123,8 +123,7 @@ int handle_ifndef(const char *file_name, lexer *lex, preprocessor_context *ctx){
 	
 	int condition = 0;	
 	if(is_active(ctx))
-		if( macro_lookup(&ctx->macros, identifier))
-			condition = 0;
+		condition = !macro_lookup(&ctx->macros, identifier);
 
 	free(identifier);	
 

@@ -6,6 +6,7 @@
 
 
 int preprocessor_context_init(preprocessor_context *ctx){
+	ctx->stack_top = NULL;
 	ctx->macros.bucket_count = INITIAL_BUCKET_COUNT;
 	ctx->macros.macro_count = 0;
 	ctx->macros.buckets = calloc(ctx->macros.bucket_count, sizeof(macro *));
@@ -87,7 +88,6 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 				break;
 			case INVALID:
 				fprintf(stderr, "%s:%zu:%zu: warning: Invalid token %.*s\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
-
 				fwrite(source + tok.start, 1, tok.length, fd);
 				break;
 			case COMMENT:
@@ -125,7 +125,6 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 
 int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth){
 	token tok;
-	putc('\n',fd);
 	do{
 		tok = lexer_next(lex);
 	}while(tok.type == SPACE || tok.type == COMMENT);
@@ -135,7 +134,7 @@ int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_c
 		fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: invalid preprocessing directive\n", file_name, tok.line, tok.column);
 		return 1;
 	}
-	if(tok.length == 7 && strncmp(lex->source + tok.start, "include", 7) == 0){
+	if(tok.length == 7 && strncmp(lex->source + tok.start, "include", 7) == 0 ){
 		return handle_include(file_name, lex, fd, ctx, depth);
 	}
 	if(tok.length == 6 && strncmp(lex->source + tok.start, "define", 6) == 0){
@@ -203,8 +202,7 @@ int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_con
 		fs = find_valid_path(NULL, header_file_name, &file_path);
 	}
 	else{
-		fprintf(stderr, "%s:%zu:%zu: error: expected header filename\n",
-				file_name, tok.line, tok.column);
+		fprintf(stderr, "%s:%zu:%zu: error: expected header filename\n", file_name, tok.line, tok.column);
 		return 1;
 	}
 
