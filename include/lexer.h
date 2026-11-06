@@ -58,9 +58,18 @@ typedef struct macro_table{
 }macro_table;
 
 
-typedef struct preprocesso_context {
+typedef struct preprocessor_context {
 	macro_table macros;
+	struct conditional *stack_top;
 }preprocessor_context;
+
+
+typedef struct conditional{
+	int parent_active;
+	int condition;
+	int else_seen;
+	struct conditional *next;
+}conditional;
 
 
 token lexer_next(lexer *);
@@ -81,6 +90,15 @@ int handle_undef(const char *, lexer *, macro_table *);
 
 int expand_macros(const token, const char *, const macro_table *, FILE *);
 void expand_token(macro *, const macro_table *, FILE *);
+
+int is_active(const preprocessor_context *);
+void free_stack(preprocessor_context *);
+int push_condition(preprocessor_context *, int);
+void pop_condition(preprocessor_context *);
+int handle_ifdef(const char *, lexer *, preprocessor_context *);
+int handle_ifndef(const char *, lexer *, preprocessor_context *);
+int handle_endif(const char *, lexer *, token, preprocessor_context *);
+int handle_else(const char *, lexer *, token, preprocessor_context *);
 
 size_t djb2(const char *);
 size_t macro_hash(const char *, const size_t);

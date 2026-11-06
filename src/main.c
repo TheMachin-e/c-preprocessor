@@ -52,6 +52,7 @@ int main(int argc, char **argv){
 	res = preprocessor(argv[1], fp, fd, &ctx, 0);
 
 	print_macro_table(&ctx.macros);
+	free_stack(&ctx);
 	fclose(fd);
 	fclose(fp);
 

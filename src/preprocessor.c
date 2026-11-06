@@ -76,14 +76,14 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 				free(row_source);
 				return 1;
 			case UNTERM_CHAR:
-				fprintf(stderr, "%s:%zu:%zu: warning: missing terminating ' character\n", file_name, tok.line, tok.column);
-
-				fwrite(source + tok.start, 1, tok.length, fd);
+				fprintf(stderr, "%s:%zu:%zu: error: missing terminating ' character\n", file_name, tok.line, tok.column);
+				free(source);
+				free(row_source);
 				break;
 			case UNTERM_STRING:
-				fprintf(stderr, "%s:%zu:%zu: warning: missing terminating \" character\n", file_name, tok.line, tok.column);
-
-				fwrite(source + tok.start, 1, tok.length, fd);
+				fprintf(stderr, "%s:%zu:%zu: error: missing terminating \" character\n", file_name, tok.line, tok.column);
+				free(source);
+				free(row_source);
 				break;
 			case INVALID:
 				fprintf(stderr, "%s:%zu:%zu: warning: Invalid token %.*s\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
@@ -140,31 +140,29 @@ int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_c
 	}
 	if(tok.length == 6 && strncmp(lex->source + tok.start, "define", 6) == 0){
 		return handle_define(file_name, lex, &ctx->macros);
-		//fprintf(stderr, "undef directive not implemented yet\n");
-		//return 1;
 	}
 	if (tok.length == 5 && strncmp(lex->source + tok.start, "undef", 5) == 0){
 		return handle_undef(file_name, lex, &ctx->macros);
 	}
 	if (tok.length == 6 && strncmp(lex->source + tok.start, "ifndef", 6) == 0){
-		//handle_ifndef()
-		fprintf(stderr, "ifndef directive not implemented yet\n");
-		return 1;
+		return handle_ifndef(file_name, lex, ctx);
+		//fprintf(stderr, "ifndef directive not implemented yet\n");
+		//return 1;
 	}
 	if (tok.length == 5 && strncmp(lex->source + tok.start, "ifdef", 5) == 0){
-		//handle_ifdef()
-		fprintf(stderr, "ifdef directive not implemented yet\n");
-		return 1;
+		return handle_ifdef(file_name, lex, ctx);
+		//fprintf(stderr, "ifdef directive not implemented yet\n");
+		//return 1;
 	}
 	if (tok.length == 5 && strncmp(lex->source + tok.start, "endif", 5) == 0){
-		//handle_endif()
-		fprintf(stderr, "endif directive not implemented yet\n");
-		return 1;
+		return handle_endif(file_name, lex, tok, ctx);
+		//fprintf(stderr, "endif directive not implemented yet\n");
+		//return 1;
 	}
 	if (tok.length == 4 && strncmp(lex->source + tok.start, "else", 4) == 0){
-		//handle_else()
-		fprintf(stderr, "else directive not implemented yet\n");
-		return 1;
+		return handle_else(file_name, lex, tok, ctx);
+		//fprintf(stderr, "else directive not implemented yet\n");
+		//return 1;
 	}
 	fprintf(stderr, "%s:%zu:%zu: error: invalid preprocessing directive1\n", file_name, tok.line, tok.column);
 	return 1;
