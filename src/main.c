@@ -34,7 +34,7 @@ int main(int argc, char **argv){
 	if(!fp){
 		perror(argv[1]);
 		fclose(fd);
-		//remove(des);
+		remove(des);
 		free(des);
 		des = NULL;
 		return 1;

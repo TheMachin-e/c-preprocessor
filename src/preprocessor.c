@@ -17,10 +17,32 @@ int preprocessor_context_init(preprocessor_context *ctx){
 	return 0;
 }
 
+int skip_directive_line(lexer *lex, const char *file_name, const char *directive , int flag){
+	token tok;
+	while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
+		if(tok.type != SPACE && tok.type != COMMENT && !flag){
+                        fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: extra tokens at the end of \033[1m'%s'\033[0m directive\n", file_name, tok.line, tok.column, directive);
+                        flag = 1;
+                }
+
+		switch(tok.type){
+			case UNTERM_COMMENT:
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated comment\n", file_name, tok.line, tok.column);
+				return 1;
+			case UNTERM_CHAR:
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: missing terminating \033[1m'\033[0m character\n", file_name, tok.line, tok.column);
+				return 1;
+			case UNTERM_STRING:
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: missing terminating \033[1m\"\033[0m character\n", file_name, tok.line, tok.column);
+				return 1;
+		}
+	}
+	return 0;
+}
 
 int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context *ctx,unsigned int depth){
 	if(depth >= MAX_INCLUDE_DEPTH){
-		fprintf(stderr, "%s: #include nested depth exceeded 100\n", file_name);
+		fprintf(stderr, "%s: \033[1;31merror\033[0m: #include nested depth exceeded 100\n", file_name);
 		return 1;
 	}
 	if(fseek(fp, 0, SEEK_END) != 0){
@@ -40,16 +62,15 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 		return 1;
 	}
 	if(fread(row_source, 1, (size_t)file_len, fp) != (size_t)file_len){
-		fprintf(stderr, "%s: Failed to read input file\n", file_name);
+		fprintf(stderr, "%s: \033[1;31merror\033[0m: Failed to read input file\n", file_name);
 		free(row_source);
 		return 1;
 	}
 	row_source[file_len] = '\0';
 	char *source = splice_remover(row_source, &source_len);
+	free(row_source);
 	if(!source){
 		perror("malloc");
-		free(row_source);
-		row_source = NULL;
 		return 1;	
 	}
 	char *header_file_name;
@@ -60,55 +81,61 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 	int res;
 	FILE * fs;
 	while((tok = lexer_next(&lex)).type != TOKEN_EOF){
-	//	fprintf(stdout, "%.*s : %s \n", (int)tok.length, source + tok.start, token_type_print(tok.type));
+		//	fprintf(stdout, "%.*s : %s \n", (int)tok.length, source + tok.start, token_type_print(tok.type));
 		if(tok.type == HASH && at_line_start){
 			res = handle_directive(file_name, &lex, fd, ctx, depth);
 			if(res != 0){
 				free(source);
-				free(row_source);
 				return res;
 			}
 			continue;
 		}
+		if(tok.type == NEWLINE){
+			at_line_start = 1;
+			//if (is_active(ctx))
+				fwrite(source + tok.start, 1, tok.length, fd);
+
+			continue;
+		}
+		if(tok.type == SPACE){
+			if (is_active(ctx))
+				fwrite(source + tok.start, 1, tok.length, fd);
+
+			continue;
+		}
+
+		//Ignore ordinary tokens in inactive regions
+		if(!is_active(ctx))
+			continue;
+
 		switch(tok.type){
 			case UNTERM_COMMENT:
-				fprintf(stderr, "%s:%zu:%zu: error: unterminated comment\n", file_name, tok.line, tok.column);
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated comment\n", file_name, tok.line, tok.column);
 				free(source);
-				free(row_source);
 				return 1;
 			case UNTERM_CHAR:
-				fprintf(stderr, "%s:%zu:%zu: error: missing terminating ' character\n", file_name, tok.line, tok.column);
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: missing terminating \033[1m'\033[0m character\n", file_name, tok.line, tok.column);
 				free(source);
-				free(row_source);
-				break;
+				return 1;
 			case UNTERM_STRING:
-				fprintf(stderr, "%s:%zu:%zu: error: missing terminating \" character\n", file_name, tok.line, tok.column);
+				fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: missing terminating \033[1m\"\033[0m character\n", file_name, tok.line, tok.column);
 				free(source);
-				free(row_source);
-				break;
+				return 1;
 			case INVALID:
-				fprintf(stderr, "%s:%zu:%zu: warning: Invalid token %.*s\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
+				fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: Invalid token \033[1m%.*s\033[0m\n", file_name, tok.line, tok.column, (int)tok.length, source + tok.start);
 				fwrite(source + tok.start, 1, tok.length, fd);
+				at_line_start = 0;
 				break;
 			case COMMENT:
 				fputc(' ', fd);
-				continue;
-			case NEWLINE:
-				at_line_start = 1;
-				fwrite(source + tok.start, 1, tok.length, fd);
-				continue;
-			case SPACE:
-				// Whitespace at the beginning of a line
-				// do not end the beginning-of-line state.
-				fwrite(source + tok.start, 1, tok.length, fd);
 				continue;
 			case IDENTIFIER:
 				res = expand_macros(tok, source, &ctx->macros, fd);
 				if(res){
 					free(source);
-					free(row_source);
 					return res;
 				}
+				at_line_start = 0;
 				break;
 			default:
 				at_line_start = 0;
@@ -116,20 +143,42 @@ int preprocessor(const char *file_name, FILE *fp, FILE *fd, preprocessor_context
 				break;
 		}
 	}
+
 	free(source);
 	source = NULL;
-	free(row_source);
-	row_source = NULL;
+	if(ctx->stack_top){
+		fprintf(stderr, "%s: \033[1;31merror\033[0m: unterminated conditionl drective\n", file_name);
+		return 1;
+	}
 	return 0;
 }
 
 int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth){
 	token tok;
+	fputc('\n', fd);
 	do{
 		tok = lexer_next(lex);
 	}while(tok.type == SPACE || tok.type == COMMENT);
 
-	//fprintf(stdout, "%.*s : %s \n", (int)tok.length, lex->source + tok.start, token_type_print(tok.type));
+//	fprintf(stdout, "%.*s : %s \n", (int)tok.length, lex->source + tok.start, token_type_print(tok.type));
+	if (tok.length == 5 && strncmp(lex->source + tok.start, "ifdef", 5) == 0){
+		return handle_ifdef(file_name, lex, ctx);
+		//fprintf(stderr, "ifdef directive not implemented yet\n");
+		//return 1;
+	}
+	if (tok.length == 5 && strncmp(lex->source + tok.start, "endif", 5) == 0){
+		return handle_endif(file_name, lex, tok, ctx);
+		//fprintf(stderr, "endif directive not implemented yet\n");
+		//return 1;
+	}
+	if (tok.length == 4 && strncmp(lex->source + tok.start, "else", 4) == 0){
+		return handle_else(file_name, lex, tok, ctx);
+		//fprintf(stderr, "else directive not implemented yet\n");
+		//return 1;
+	}
+	if(!is_active(ctx))
+		return skip_directive_line(lex, file_name, "#", 1);
+
 	if(tok.type != IDENTIFIER){
 		fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: invalid preprocessing directive\n", file_name, tok.line, tok.column);
 		return 1;
@@ -148,22 +197,9 @@ int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_c
 		//fprintf(stderr, "ifndef directive not implemented yet\n");
 		//return 1;
 	}
-	if (tok.length == 5 && strncmp(lex->source + tok.start, "ifdef", 5) == 0){
-		return handle_ifdef(file_name, lex, ctx);
-		//fprintf(stderr, "ifdef directive not implemented yet\n");
-		//return 1;
-	}
-	if (tok.length == 5 && strncmp(lex->source + tok.start, "endif", 5) == 0){
-		return handle_endif(file_name, lex, tok, ctx);
-		//fprintf(stderr, "endif directive not implemented yet\n");
-		//return 1;
-	}
-	if (tok.length == 4 && strncmp(lex->source + tok.start, "else", 4) == 0){
-		return handle_else(file_name, lex, tok, ctx);
-		//fprintf(stderr, "else directive not implemented yet\n");
-		//return 1;
-	}
-	fprintf(stderr, "%s:%zu:%zu: error: invalid preprocessing directive1\n", file_name, tok.line, tok.column);
+	
+	fprintf(stdout, "%.*s : %s \n", (int)tok.length, lex->source + tok.start, token_type_print(tok.type));
+	fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: invalid preprocessing directive1\n", file_name, tok.line, tok.column);
 	return 1;
 }
 
@@ -181,7 +217,7 @@ int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_con
 
 	if(tok.type == STRING){
 		if(tok.length <= 2){
-			fprintf(stderr, "%s:%zu:%zu: error: empty header file name\n", file_name, tok.line, tok.column);
+			fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: empty header file name\n", file_name, tok.line, tok.column);
 			return 1;
 		}
 		header_file_name = malloc(tok.length - 1);
@@ -202,7 +238,7 @@ int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_con
 		fs = find_valid_path(NULL, header_file_name, &file_path);
 	}
 	else{
-		fprintf(stderr, "%s:%zu:%zu: error: expected header filename\n", file_name, tok.line, tok.column);
+		fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: expected header filename\n", file_name, tok.line, tok.column);
 		return 1;
 	}
 

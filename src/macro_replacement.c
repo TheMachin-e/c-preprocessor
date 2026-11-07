@@ -14,12 +14,12 @@ int handle_define(const char *file_name, lexer *lex, macro_table *table){
         }while(tok.type == SPACE || tok.type == COMMENT);
 
         if(tok.type == NEWLINE || tok.type == TOKEN_EOF){
-                fprintf(stderr, "%s:%zu:%zu: error: no macro name given with '#define' directive\n", file_name, tok.line, tok.column);
+                fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: no macro name given with \033[1m'#define'\033[0m directive\n", file_name, tok.line, tok.column);
                 free(new_macro);
                 return 1;
         }    
         else if(tok.type != IDENTIFIER){
-                fprintf(stderr, "%s:%zu:%zu: error: macro names must be identifier\n", file_name, tok.line, tok.column);
+                fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: macro names must be identifier\n", file_name, tok.line, tok.column);
                 free(new_macro);
                 return 1;
         }
@@ -36,11 +36,11 @@ int handle_define(const char *file_name, lexer *lex, macro_table *table){
         tok = lexer_next(lex);
 
         if(tok.type != SPACE && tok.type != NEWLINE)
-                fprintf(stderr, "%s:%zu:%zu: warning: ISO C99 requires whitespace after the macro name\n", file_name, tok.line, tok.column);
+                fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: ISO C99 requires whitespace after the macro name\n", file_name, tok.line, tok.column);
     
         //function macro not implemented
         if(tok.type == DELIMITER && tok.length == 1 && lex->source[tok.start] == '('){
-                fprintf(stderr, "%s:%zu:%zu: error: function-like macros not supported yet\n", file_name, tok.line, tok.column);
+                fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: function-like macros not supported yet\n", file_name, tok.line, tok.column);
                 free(new_macro->name);
                 free(new_macro);
                 return 1;
@@ -65,7 +65,7 @@ int handle_define(const char *file_name, lexer *lex, macro_table *table){
         macro_token *tmp;
         while(tok.type != NEWLINE && tok.type != TOKEN_EOF){
                 if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: error: unterminated token in macro replacement\n", file_name, tok.line, tok.column);
+                        fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated token in macro replacement\n", file_name, tok.line, tok.column);
 
                         free_replacement_tokens(new_macro);
                         free(new_macro->name);
@@ -130,7 +130,7 @@ int handle_undef(const char *file_name, lexer *lex, macro_table *table){
                 return 1;
         }
         else if(tok.type != IDENTIFIER){
-                fprintf(stderr, "%s:%zu:%zu: error: macro name must identifier\n", file_name, tok.line, tok.column);
+                fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: macro name must identifier\n", file_name, tok.line, tok.column);
                 return 1;
         }
     
@@ -143,19 +143,8 @@ int handle_undef(const char *file_name, lexer *lex, macro_table *table){
         macro_name[tok.length] = '\0';
         macro_delete(table, macro_name);
         free(macro_name);
-        char flag = 0;//to prevent the warning from printing more than onece
-
-        while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
-                if(tok.type != SPACE && tok.type != COMMENT && !flag){
-                        fprintf(stderr, "%s:%zu:%zu: warning: extra tokens at the end of '#undef' directive\n", file_name, tok.line, tok.column);
-                        flag = 1;
-                }
-                if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: error: unterminated token at the end of '#undef' directive\n", file_name, tok.line, tok.column);
-                        return 1;    
-                }
-        }
-        return 0;
+	
+	return skip_directive_line(lex, file_name, "#undef", 0);
 }
 
 int expand_macros(const token tok, const char *source, const macro_table *table, FILE *fd){
@@ -202,7 +191,6 @@ void  expand_token(macro *tmp_macro,  const macro_table *table, FILE *fd){
                 else
                         fputs(name, fd);
         }
-
 }
 
 

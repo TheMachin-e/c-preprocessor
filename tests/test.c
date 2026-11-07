@@ -1,4 +1,4 @@
-//# +include<stdio.h>
+//#include<stdio.h>
 #define hi macro5
 #define her (a + b);
 #define hel (ab * hello) 

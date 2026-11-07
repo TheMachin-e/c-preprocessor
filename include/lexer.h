@@ -83,6 +83,7 @@ int preprocessor(const char *, FILE *, FILE *, preprocessor_context *, unsigned 
 FILE *find_valid_path(const char *, const char *, char **);
 
 int preprocessor_context_init(preprocessor_context *);
+int skip_directive_line(lexer *, const char *, const char *, int);
 int handle_directive(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth);
 int handle_include(const char *file_name, lexer *lex, FILE *fd, preprocessor_context *ctx, unsigned int depth);
 int handle_define(const char *, lexer *, macro_table *);

@@ -41,6 +41,7 @@ void pop_condition(preprocessor_context *ctx){
 	
 	ctx->stack_top = node->next;
 	free(node);
+	node = NULL;
 }
 
 
@@ -80,20 +81,7 @@ int handle_ifdef(const char *file_name, lexer *lex, preprocessor_context *ctx){
 	if(res)
 		return res;
 
-
-	int flag = 0;
-	while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
-                if(tok.type != SPACE && tok.type != COMMENT && !flag){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: extra tokens at the end of \033[1m'#undef'\033[0m directive\n", file_name, tok.line, tok.column);
-                        flag = 1;
-                }
-                if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated token at the end of \033[1m'#undef'\033[0m directive\n", file_name, tok.line, tok.column);
-                        return 1;
-                }
-        }
-	
-	return 0;
+	return skip_directive_line(lex, file_name, "#ifndef", 0);
 }
 
 
@@ -104,7 +92,7 @@ int handle_ifndef(const char *file_name, lexer *lex, preprocessor_context *ctx){
 	}while(tok.type == SPACE || tok.type == COMMENT);
 
 	if(tok.type == NEWLINE || tok.type == TOKEN_EOF){
-		fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: no macro name given with \033[1m'#ifdef'\033[0m directive\n", file_name, tok.line, tok.column);
+		fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: no macro name given with \033[1m'#ifndef'\033[0m directive\n", file_name, tok.line, tok.column);
 		return 1;
 	}    
 	else if(tok.type != IDENTIFIER){
@@ -132,20 +120,8 @@ int handle_ifndef(const char *file_name, lexer *lex, preprocessor_context *ctx){
 	if(res)
 		return res;
 
-	int flag = 0;
-	while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
-                if(tok.type != SPACE && tok.type != COMMENT && !flag){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: extra tokens at the end of \033[1m'#ifndef'\033[0m directive\n", file_name, tok.line, tok.column);
-                        flag = 1;
-                }
-                if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated token at the end of \033[1m'#ifndef'\033[0m directive\n", file_name, tok.line, tok.column);
-                        return 1;
-                }
-        }
-	
-	return 0;
-}
+	return skip_directive_line(lex, file_name, "#ifndef", 0);
+	}
 
 int handle_endif(const char *file_name, lexer *lex, token tok, preprocessor_context *ctx){
 	if(!ctx->stack_top){
@@ -155,21 +131,10 @@ int handle_endif(const char *file_name, lexer *lex, token tok, preprocessor_cont
 	
 	pop_condition(ctx);
 
-	int flag = 0;
-	while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
-                if(tok.type != SPACE && tok.type != COMMENT && !flag){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: extra tokens at the end of \033[1m'#endif'\033[0m directive\n", file_name, tok.line, tok.column);
-                        flag = 1;
-                }
-                if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated token at the end of \033[1m'#endif'\033[0m directive\n", file_name, tok.line, tok.column);
-                        return 1;
-                }
-        }
-	
-	return 0;
-	
+	return skip_directive_line(lex, file_name, "#endif", 0);
 }
+
+
 
 int handle_else(const char *file_name, lexer *lex, token tok, preprocessor_context *ctx){
 	conditional *top = ctx->stack_top;
@@ -185,17 +150,5 @@ int handle_else(const char *file_name, lexer *lex, token tok, preprocessor_conte
 
 	top->else_seen = 1;
 	
-	int flag = 0;
-	while((tok = lexer_next(lex)).type != NEWLINE && tok.type != TOKEN_EOF){
-                if(tok.type != SPACE && tok.type != COMMENT && !flag){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;35mwarning\033[0m: extra tokens at the end of \033[1m'#else'\033[0m directive\n", file_name, tok.line, tok.column);
-                        flag = 1;
-                }
-                if(tok.type == UNTERM_COMMENT || tok.type == UNTERM_STRING || tok.type == UNTERM_CHAR){
-                        fprintf(stderr, "%s:%zu:%zu: \033[1;31merror\033[0m: unterminated token at the end of \033[1m'#else'\033[0m directive\n", file_name, tok.line, tok.column);
-                        return 1;
-                }
-        }
-	
-	return 0;
+	return skip_directive_line(lex, file_name, "#else", 0);
 }
